@@ -1,0 +1,139 @@
+---
+title: "Daily Activity Analysis"
+subtitle: "Reproducible Research Project 1"
+author: "Michael Sieviec"
+date: "August 1, 2018"
+output: 
+  html_document: 
+    toc: true
+---
+
+```{r setoptions,echo=F,warning=F,message=F}
+library(knitr)
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(lubridate)
+library(kableExtra)
+opts_chunk$set(echo=TRUE,results="asis")
+```
+
+## Introduction
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals throughout the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+## Load the data
+```{r}
+data <- read.csv("activity.csv",header=TRUE)
+data$date <- as.Date(data$date,"%Y-%m-%d")
+```
+
+## Total Steps Per Day
+### Daily Steps
+Below is a histogram of the total steps taken per day.
+```{r}
+stepsbyday0 <- with(data,tapply(steps,date,sum,na.rm=TRUE))
+p1 <- ggplot() + aes(stepsbyday0) + geom_histogram(binwidth = 1000) + 
+    labs(title="Figure 1: Daily Steps Taken") + xlab("Steps") + ylab("Frequency")
+p1
+```
+
+### Mean and Median Per Day Totals
+``` {r}
+mean(stepsbyday0,na.rm=TRUE)
+median(stepsbyday0,na.rm=TRUE)
+```
+
+Here we see that the mean and median total steps per day are 9354.23 and 10395,
+respectively.
+
+### Daily Totals of Steps
+Below is a table of total steps by day.
+```{r}
+stepsbyday0 <- melt(stepsbyday0)
+names(stepsbyday0) <- c("Date","Steps")
+kable(stepsbyday0) %>% 
+    kable_styling(bootstrap_options="striped") %>% scroll_box(width="400px",height="300px")
+```
+
+## Average Number of Steps by Time Interval
+### Steps by Interval
+Below is a plot of the average number of steps taken per time interval across 
+all days.
+```{r}
+stepsbyinterval0 <- with(data,tapply(steps,interval,mean,na.rm=TRUE))
+stepsbyinterval0 <- melt(stepsbyinterval0)
+p2 <- ggplot(data=stepsbyinterval0,aes(x=Var1,y=value)) + 
+             labs(title="Figure 2: Average Number of Steps by Daily Interval") + geom_line() + 
+                xlab("Interval") + ylab("Steps")
+p2
+```
+
+### Interval With Highest Average
+```{r}
+rownames(stepsbyinterval0)[stepsbyinterval0$value==max(stepsbyinterval0$value)]
+```
+
+We see that the interval with the highest average number of steps taken is 104.
+
+## Imputing Missing Values
+### Number of Missing Measurements
+```{r}
+length(data$steps) - sum(complete.cases(data))
+```
+
+We see that the number of missing measurements is 2304.
+
+### Imputing Missing Measurements and Plotting Results
+Missing data is imputed via the average for that particular time interval across all 
+days. The results are then plotted.
+```{r}
+datanew <- data %>% group_by(interval) %>% 
+    summarize(average = mean(steps,na.rm=TRUE)) %>% 
+    merge(data, ., all.x=TRUE) %>%
+    mutate(steps = ifelse(is.na(steps)==TRUE, average, steps)) %>%
+    select(-average)
+datanew <- datanew[order(datanew$date),]
+
+stepsbyday1 <- with(datanew,tapply(steps,date,sum))
+
+p3 <- ggplot() + aes(stepsbyday1) + geom_histogram(binwidth = 1000) + 
+    labs(title="Figure 3: Daily Steps Taken") + xlab("Steps") + ylab("Frequency")
+p3
+```
+
+### Mean and Median Steps Per Day (with Imputed Values)
+```{r}
+mean(stepsbyday1)
+median(stepsbyday1)
+```
+
+We see that the mean and median number of steps per day of the adjusted data set
+are both 10766.19, quite different from earlier.
+
+## Patterns by Weekday and Weekend and Plotting Results
+A factor of "weekday" or "weekend" for each measurement is then added to the 
+adjusted data set and the average total steps per interval for each factor are compared graphically.
+```{r}
+data <- transform(data,weekday = ifelse(wday(data$date)==1 | wday(data$date)==7,
+                                        "weekend","weekday"))
+data <- with(data,tapply(steps,list(interval,weekday),mean,na.rm=TRUE))
+data <- melt(data)
+
+p4 <- ggplot(data,aes(x=Var1,y=value,color=Var2)) + 
+    labs(title="Figure 4: Average Number of Steps Per Interval by Weekend/Weekday") + 
+    geom_line() + facet_wrap(.~Var2,nrow=2) + theme(legend.position="none") + 
+    xlab("Interval") + ylab("Steps")
+p4
+```
+
+# Notes
+
+The document was generated using OSX 10.13.6, RStudio v1.1.453, and the following packages:
+
+* dplyr v0.7.6
+* ggplot2 v3.0.0
+* kableExtra v0.9.0
+* knitr v1.20
+* lubridate v1.7.4
+* reshape2 v1.4.3
